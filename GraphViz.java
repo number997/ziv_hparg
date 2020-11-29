@@ -4,7 +4,7 @@ package GraphViz;
  *  set package name based on your project structure  #
  *#####################################################/
 
-//GraphVizSPA3.java - a API to create graph images and dot graph representations
+//GraphViz.java - a API to create graph images and dot graph representations
 //from Java programs. API strives to be compatible with graph definitions and
 //implementations on Data Structures and Algorithms 3 course on 
 //Faculty of Sciences University of Novi Sad
@@ -29,7 +29,7 @@ package GraphViz;
 *                                                                            *
 ******************************************************************************
 */
-
+import java.awt.Desktop;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -37,22 +37,23 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.lang.reflect.*;
 import java.util.Set;
 
-public class GraphVizSPA3
+public class GraphViz
 {
     private final static String OS_NAME = System.getProperty("os.name").replaceAll("\\s","");
     private static final String GRAPH_VIZ_INSTALLATION_DIR = "Graphviz";
     private static final String GRAPH_VIZ_EXE_PATH = "/bin/dot.exe";
     private static final String GRAPH_COUNTER = "/info/counter.txt";
-    private static final String GRAPH_VIZ_DIR = "/GraphVizSPA3";
     private static final String DOT_DIR = "/dot";
     private static final String INFO_DIR = "/info";
     private static final String SPACING = "    ";
-    private static final Set<String> ALLOWED_FILE_TYPES = Set.of("gif", "png", "jpg");
-    private String winLocalDisk = "C:";
+    private static final String GRAPH_DRAWING_ONLINE_SERVICE = "https://image-charts.com/chart?cht=gv:dot&chl=";
+    private static final Set<String> ALLOWED_FILE_TYPES = Set.of("gif", "png", "jpg", "svg");
     //#############################################################
     //GRAPH METHODS
     private String numberOfVerticesMethodName = "V";
@@ -78,45 +79,74 @@ public class GraphVizSPA3
     
     private String rootDir;
     private String executable;
+    
+    private boolean graphVizExists;
 
-    public GraphVizSPA3() {
-        this("C:");
+    public GraphViz() {
+        this(null, null);
     }
     
-    public GraphVizSPA3(String winLocalDisk) {
-    	this.winLocalDisk = winLocalDisk;
-    	try {
-			init();
-		} catch (FileNotFoundException e) {
-			System.out.println("GraphViz dot not found on expected location C:/Program Files/GraphViz... \n"
-			+ "or C:/Program Files (x86)/GraphViz... on Windows. On MacOSX expected location is\n"
-			+ "/usr/local/bin/dot. On Linux distributions expected location is /usr/bin/dot.\n"
-			+ "If you do not have GraphViz installed on your computer please\n"
-			+ "install GraphViz from https://graphviz.org/.\n");
-			e.printStackTrace();
+    public GraphViz(String executable) {
+    	this(executable, null);
+    }
+    
+    public GraphViz(String executable, String rootDir) {
+    	this.executable = executable;
+    	this.rootDir = rootDir;
+    	init();
+    }
+	
+    public void init() {
+    	if (OS_NAME.contains("Windows")) {
+    		windowsSetup();
+        } else if (OS_NAME.equals("MacOSX")) {
+        	linuxSetup();
+        } else if (OS_NAME.equals("Linux")) {
+        	macOSSetup();
+        }
+    	
+    	if(executable == null) {
+    		graphVizExists = false;
+    	} else {
+    		File exe = new File(executable);
+        	if(!exe.exists()) {
+        		graphVizExists = false;
+        	}
+    	}
+        initStructure();
+    }
+    
+    private void windowsSetup() {
+    	if(rootDir == null) {
+    		rootDir = "C:/GraphViz";
+    	}
+    	
+        if(executable == null) {
+			executable = graphVizWindowsDefaultSearch();
+			if(executable == null) {
+				
+			}
 		}
     }
     
-    public GraphVizSPA3(boolean help) {
-    	help();
-    }
-	
-    public void init() throws FileNotFoundException {
-    	if (OS_NAME.contains("Windows")) {
-			executable = graphVizWindowsDefaultSearch();
-            rootDir = winLocalDisk+GRAPH_VIZ_DIR;
-        } else if (OS_NAME.equals("MacOSX")) {
-        	rootDir = System.getProperty("user.home")+GRAPH_VIZ_DIR;
-            executable = "/usr/local/bin/dot";
-        } else if (OS_NAME.equals("Linux")) {
-        	rootDir = System.getProperty("user.home")+GRAPH_VIZ_DIR;
-            executable = "/usr/bin/dot";
-        }
-    	File exe = new File(executable);
-    	if(!exe.exists()) {
-    		throw new FileNotFoundException();
+    private void linuxSetup() {
+    	if(rootDir == null) {
+    		rootDir = System.getProperty("user.home")+"/GraphViz";
     	}
-        initStructure();
+    	
+    	if(executable == null) {
+    		executable = "dot";
+    	}
+    }
+    
+    private void macOSSetup() {
+    	if(rootDir == null) {
+    		rootDir = System.getProperty("user.home")+"/GraphViz";
+    	}
+    	
+    	if(executable == null) {
+    		executable = "dot";
+    	}
     }
     
     /**
@@ -151,9 +181,9 @@ public class GraphVizSPA3
 	 * @return
 	 * @throws FileNotFoundException
 	 */
-    private String graphVizWindowsDefaultSearch() throws FileNotFoundException {
-    	String[] programFilesLocations = {winLocalDisk+"/Program Files (x86)", 
-    			winLocalDisk+"/Program Files"};
+    private String graphVizWindowsDefaultSearch() {
+    	String[] programFilesLocations = {"C:/Program Files (x86)", 
+    			"C:/Program Files"};
     	String path = null;
     	for(String s : programFilesLocations) {
     		path = findGraphViz(s);
@@ -162,7 +192,7 @@ public class GraphVizSPA3
     		}
     	}
     	
-    	throw new FileNotFoundException();
+    	return null;
     }
     
     /**
@@ -192,16 +222,14 @@ public class GraphVizSPA3
 	 * on Data Structures and Algorithms 3 course.
 	 * @param Object graph
 	 */
-    public void createGraphImage(Object graph)
-    {
+    public void createGraphImage(String fileName, Object graph) {
     	String dotString = toDot(graph);
         int dotId;
         try {
-        	dotId = writeDotToFile(dotString);
+        	dotId = writeDotToFile(fileName, dotString);
             
-            if (dotId != -1)
-            {
-            	writeImg(dotId);
+            if (dotId != -1) {
+            	writeImg(fileName, dotId);
             }
             
         } catch (java.io.IOException e) {
@@ -209,25 +237,31 @@ public class GraphVizSPA3
         }
     }
     
+    public void createGraphImage(Object graph) {
+    	createGraphImage(null, graph);
+    }
+    
     /**
 	 * Creates graph image from string. String should be
 	 * compatible with dot format.
 	 * @param String dotSource
 	 */
-    public void createGraphImage(String dotString)
-    {
+    public void createGraphImage(String fileName, String dotString) {
     	int dotId;
         try {
-        	dotId = writeDotToFile(dotString);
+        	dotId = writeDotToFile(fileName, dotString);
             
-            if (dotId != -1)
-            {
-            	writeImg(dotId);
+            if (dotId != -1) {
+            	writeImg(fileName, dotId);
             }
             
         } catch (java.io.IOException e) {
         	e.printStackTrace();
         }
+    }
+    
+    public void createGraphImage(String dotString) {
+    	createGraphImage(null, dotString);
     }
 
     /**
@@ -235,27 +269,77 @@ public class GraphVizSPA3
      * by using installed GraphViz.
      * @param dot
      */
-    private void writeImg(int dotId)
+    private void writeImg(String fileName, int dotId)
     {
-    	String dotFileLocation = rootDir+DOT_DIR+"/graph_"+dotId+".dot";
-    	String imgFileLocation = rootDir+"/graph_drawing_"+dotId+"."+fileType;
+    	if(!graphVizExists) {
+    		System.out.println("GraphViz dot not found on expected location C:/Program Files/GraphViz... \n"
+				+ "or C:/Program Files (x86)/GraphViz... on Windows. On MacOSX and Linux it should be on path.\n"
+				+ "If you do not have GraphViz installed on your computer please\n"
+				+ "install GraphViz from https://graphviz.org/.\n\n"
+				+ "######### IMPORTANT #########\n"
+				+ "If for some reason you don't want to install GraphViz, dont use createGraphImage(...),\n"
+				+ "instead use method drawInBrowser(Object graph) or drawInBrowser(String dot).\n"
+				+ "Graphs that have more than 400 edges can't be drawn using browser methods.\n");
+    	}
+    	
+    	String dotFileLocation = createDotFileName(fileName, dotId);
+    	String imgFileLocation = createDrawingFileName(fileName, dotId);
         
         try {
             Runtime rt = Runtime.getRuntime();
-            String[] args = { executable, "-T", fileType, "-o", imgFileLocation, dotFileLocation };
+            String[] args = { executable, "-T", fileType, "-o", imgFileLocation, dotFileLocation};
             Process p = rt.exec(args);
             p.waitFor();
-        } catch (java.io.IOException ioe) {
-            System.err.println("Error:    in I/O processing of tempfile in dir " + rootDir + "\n");
-            System.err.println("       or in calling external command");
+        } catch (IOException ioe) {
+            System.err.println("Error: in I/O processing of tempfile in dir " + rootDir + "\n or in calling external command");
             ioe.printStackTrace();
-        } catch (java.lang.InterruptedException ie) {
+        } catch (InterruptedException ie) {
             System.err.println("Error: the execution of the external program was interrupted");
             ie.printStackTrace();
         }
         
         System.out.println("From dot file "+dotFileLocation+" graph "
         		+ "image successfully created in "+imgFileLocation);
+    }
+    
+    /**
+     * Creates dot file name based on name passed by user.
+     * @param fileName
+     * @param dotId
+     * @return filename
+     */
+    private String createDotFileName(String fileName, int dotId) {
+    	StringBuilder sb = new StringBuilder(rootDir+DOT_DIR);
+    	//length should be greater than 5 because `.dot` is 4 letters
+    	if(fileName != null && fileName.length() > 5) {
+    		sb.append("/"+fileName);
+    		if(!fileName.substring(fileName.length() - 4).equals(".dot")) {
+    			sb.append(".dot");
+    		}
+    	} else {
+    		sb.append("/graph_"+dotId+".dot");
+    	}
+    	return sb.toString();
+    }
+    
+    /**
+     * Creates image file name based on name passed by user and parameters set
+     * @param fileName
+     * @param dotId
+     * @return filename
+     */
+    private String createDrawingFileName(String fileName, int dotId) {
+    	StringBuilder sb = new StringBuilder(rootDir);
+    	//length should be greater than 5 because `.dot` is 4 letters
+    	if(fileName != null && fileName.length() > 5) {
+    		sb.append("/"+fileName);
+    		if(!fileName.substring(fileName.length() - (fileType.length()+1)).equals(fileType)) {
+    			sb.append("."+fileType);
+    		}
+    	} else {
+    		sb.append("/graph_drawing_"+dotId+"."+fileType);
+    	}
+    	return sb.toString();
     }
 
     /**
@@ -264,10 +348,16 @@ public class GraphVizSPA3
      * @return
      * @throws java.io.IOException
      */
-    private int writeDotToFile(String dotString) throws java.io.IOException
+    private int writeDotToFile(String filename, String dotString) throws IOException
     {
-    	int dotId = updateDotId();
-        File dot = new File(rootDir+DOT_DIR+"/graph_"+dotId+".dot");
+    	int dotId = 1;
+    	if(filename == null) {
+    		dotId = updateDotId();
+    	} 
+    	
+    	String file = createDotFileName(filename, dotId);
+    	File dot = new File(file);
+
         try {
         	dot.createNewFile();
             FileWriter fout = new FileWriter(dot);
@@ -283,13 +373,48 @@ public class GraphVizSPA3
     }
     
     /**
+     * For no more than 400 edges
+     * Opens default browser and sends query to image-charts to draw graph
+     * Graph will be drawn as .png file
+     * @param graph
+     */
+    public void drawInBrowser(Object graph) {
+    	try {
+    		String dot = URLEncoder.encode(toDot(graph).replace("\s", "")
+    				.replace("\n", "").replace("\t", ""), "UTF-8");
+        	String url = GRAPH_DRAWING_ONLINE_SERVICE+dot;
+			Desktop.getDesktop().browse(new URL(url).toURI());
+		} catch (IOException | URISyntaxException e) {
+			e.printStackTrace();
+		}
+    }
+    
+    /**
+     * For no more than 400 edges
+     * Opens default browser and sends query to image-charts to draw graph
+     * Graph will be drawn as .png file
+     * @param string (dot)
+     */
+    public void drawInBrowser(String dotString) {
+    	try {
+    		String dot = URLEncoder.encode(dotString.replace("\s", "")
+    				.replace("\n", "").replace("\t", ""), "UTF-8");
+        	String url = GRAPH_DRAWING_ONLINE_SERVICE+dot;
+			Desktop.getDesktop().browse(new URL(url).toURI());
+		} catch (IOException | URISyntaxException e) {
+			e.printStackTrace();
+		}
+    }
+    
+    
+    
+    /**
      * Creates dot representation of graph passed as parameter.
      * Name of class is checked and required methods are used.
      * @param g
      * @return
      */
-    @SuppressWarnings("unchecked")
-	public String toDot(Object graph) {
+    public String toDot(Object graph) {
     	String className = graph.getClass().getSimpleName();
     	try {
 			validateClassName(className);
@@ -300,53 +425,14 @@ public class GraphVizSPA3
     	StringBuilder sb = new StringBuilder();
     	try {
     		sb.append(graphTypeDotIdentifier(className));
+    		//if graph or digraph
     		if(className.equals(graphClassName) 
     		   || className.equals(digraphClassName)) {
-    			Method V = graph.getClass().getMethod(numberOfVerticesMethodName);
-        		Method adj = graph.getClass().getMethod(adjacentVerticesMethodName, int.class);
-				for(int v = 0; v < (int)V.invoke(graph); v++) {
-					for(int w : (Iterable<Integer>) adj.invoke(graph, v)) {
-						if(className.equals(graphClassName)) {
-							if(v < w) {
-								sb.append(SPACING+v+ glue(className) + w);
-								sb.append(";\n");
-							}
-							
-						} else if(className.equals(digraphClassName)) {
-							sb.append(SPACING+v+ glue(className) + w);
-							sb.append(";\n");
-						}
-					}
-				}
+    			sb.append(linkVertices(graph, className));
+    		//if edge weighted graph or edge weighted digraph
 			} else if (className.equals(edgeWeightedGraphClassName) 
 					   || className.equals(edgeWeightedDigraphClassName)) {
-				int v = -1;
-				int w = -1;
-		    	Method edges = graph.getClass().getMethod(edgeMethodName);
-		    	for(Object edge : (Iterable<Object>) edges.invoke(graph)) {
-		    		Method weight = edge.getClass().getMethod(edgeWeightMethodName);
-	    			double wt = (double) weight.invoke(edge);
-		    		if(className.equals(edgeWeightedGraphClassName)) {
-		    			Method from = edge.getClass().getMethod(edgeWeightedGraphEither);
-		    			Method to = edge.getClass().getMethod(edgeWeightedGraphOther, int.class);
-		    			
-		    			v = (int) from.invoke(edge);
-		    			w = (int) to.invoke(edge, v);
-		    		} else if(className.equals(edgeWeightedDigraphClassName)) {
-		    			Method from = edge.getClass().getMethod(edgeWeightedDigraphFrom);
-		    			Method to = edge.getClass().getMethod(edgeWeightedDigraphTo);
-		    			
-		    			v = (int) from.invoke(edge);
-		    			w = (int) to.invoke(edge);
-		    		}
-		    		
-		    		if(v == -1 || w == -1) {
-		    			throw new IllegalArgumentException();
-		    		}
-		    		
-		    		sb.append(SPACING+v+ glue(className) + w + "[label="+wt+"]");
-					sb.append(";\n");
-		    	}
+				sb.append(linkEdgeWeightedVertices(graph, className));
 			}
 		} catch (IllegalAccessException 
 				| IllegalArgumentException 
@@ -358,6 +444,76 @@ public class GraphVizSPA3
 		}
     	sb.append("}");
     	
+    	return sb.toString();
+    }
+    
+    /**
+     * For graph and digraph creates string of vertices
+     * @param graph
+     * @param className
+     * @return
+     * @throws NoSuchMethodException
+     * @throws SecurityException
+     * @throws IllegalAccessException
+     * @throws IllegalArgumentException
+     * @throws InvocationTargetException
+     */
+    @SuppressWarnings("unchecked")
+	private String linkVertices(Object graph, String className) throws 
+	NoSuchMethodException, SecurityException, IllegalAccessException, 
+	IllegalArgumentException, InvocationTargetException {
+    	StringBuilder sb = new StringBuilder();
+    	Method V = graph.getClass().getMethod(numberOfVerticesMethodName);
+		Method adj = graph.getClass().getMethod(adjacentVerticesMethodName, int.class);
+		for(int v = 0; v < (int)V.invoke(graph); v++) {
+			for(int w : (Iterable<Integer>) adj.invoke(graph, v)) {
+				if(className.equals(graphClassName)) {
+					if(v < w) {
+						sb.append(SPACING+v+ glue(className) + w);
+						sb.append(";\n");
+					}
+					
+				} else if(className.equals(digraphClassName)) {
+					sb.append(SPACING+v+ glue(className) + w);
+					sb.append(";\n");
+				}
+			}
+		}
+		return sb.toString();
+    }
+    
+    @SuppressWarnings("unchecked")
+	private String linkEdgeWeightedVertices(Object graph, String className) throws 
+    NoSuchMethodException, SecurityException, IllegalAccessException, 
+    IllegalArgumentException, InvocationTargetException {
+    	StringBuilder sb = new StringBuilder();
+    	int v = -1;
+		int w = -1;
+    	Method edges = graph.getClass().getMethod(edgeMethodName);
+    	for(Object edge : (Iterable<Object>) edges.invoke(graph)) {
+    		Method weight = edge.getClass().getMethod(edgeWeightMethodName);
+			double wt = (double) weight.invoke(edge);
+    		if(className.equals(edgeWeightedGraphClassName)) {
+    			Method from = edge.getClass().getMethod(edgeWeightedGraphEither);
+    			Method to = edge.getClass().getMethod(edgeWeightedGraphOther, int.class);
+    			
+    			v = (int) from.invoke(edge);
+    			w = (int) to.invoke(edge, v);
+    		} else if(className.equals(edgeWeightedDigraphClassName)) {
+    			Method from = edge.getClass().getMethod(edgeWeightedDigraphFrom);
+    			Method to = edge.getClass().getMethod(edgeWeightedDigraphTo);
+    			
+    			v = (int) from.invoke(edge);
+    			w = (int) to.invoke(edge);
+    		}
+    		
+    		if(v == -1 || w == -1) {
+    			throw new IllegalArgumentException();
+    		}
+    		
+    		sb.append(SPACING+v+ glue(className) + w + "[label="+wt+"]");
+			sb.append(";\n");
+    	}
     	return sb.toString();
     }
     
@@ -408,8 +564,8 @@ public class GraphVizSPA3
     
     /**
      * Based on class name checks if graph we are looking at is weighted
-     * @param o
-     * @return
+     * @param className
+     * @return boolean
      */
     public boolean isWeighted(String className) {
     	if(className.equals(edgeWeightedGraphClassName) || className.equals(edgeWeightedDigraphClassName)) {
@@ -453,7 +609,7 @@ public class GraphVizSPA3
 			}
 			return Integer.parseInt(s);
 		} catch (Exception e) {
-			System.out.println("Cant read graph counter on location "+rootDir+GRAPH_COUNTER+".");
+			System.err.println("Cant read graph counter on location "+rootDir+GRAPH_COUNTER+".");
 			e.printStackTrace();
 		} finally {
 			try {
@@ -480,7 +636,7 @@ public class GraphVizSPA3
 	      pw.print("");
 	      pw.print(currentGraph);
 	    } catch (IOException e) {
-	      System.out.println("Cant write in graph counter on location "+rootDir+GRAPH_COUNTER+".");
+	      System.err.println("Cant write in graph counter on location "+rootDir+GRAPH_COUNTER+".");
 	      e.printStackTrace();
 	    } finally {
 	    	pw.close();
@@ -488,11 +644,7 @@ public class GraphVizSPA3
 
     	return currentGraph;
     }
-    
-    public void setWinLocalDisk(String winLocalDisk) {
-    	this.winLocalDisk = winLocalDisk;
-    }
-    
+
     public void setNumberOfVerticesMethodName(String methodName) {
     	numberOfVerticesMethodName = methodName;
     }
@@ -540,7 +692,7 @@ public class GraphVizSPA3
     public void setEdgeWeightedDigraphTo(String methodName) {
     	edgeWeightedDigraphTo = methodName;
     }
-    
+
     public void setFileType(String fileType) {
     	if(!ALLOWED_FILE_TYPES.contains(fileType)) {
     		throw new IllegalArgumentException();
@@ -566,20 +718,20 @@ public class GraphVizSPA3
         edgeWeightedGraphClassName = "EdgeWeightedGraph";
         edgeWeightedDigraphClassName = "EdgeWeightedDigraph";
     }
-    
+
     /**
      * helper method //finish weighted graphs
      */
-    public void help() {
-    	StringBuilder sb = new StringBuilder("-----GraphVizSPA3 help-----\n");
-    	sb.append("-GraphVizSPA3 expects GraphViz (https://graphviz.org/) to be installed on your computer.\n"
-    			+ "-GraphVizSPA3 is made to be used within graph classes used and implemented on course Data Structures and\n"
-    			+ "-Algorithms 3. GraphVizSPA3 works as expected with Graph, Digraph, EdgeWeightedGraph and EdgeWeightedDigraph\n"
+    public static void help() {
+    	StringBuilder sb = new StringBuilder("-----GraphViz help-----\n");
+    	sb.append("-GraphViz expects GraphViz (https://graphviz.org/) to be installed on your computer.\n"
+    			+ "-GraphViz is made to be used within graph classes used and implemented on course Data Structures and\n"
+    			+ "-Algorithms 3. GraphViz works as expected with Graph, Digraph, EdgeWeightedGraph and EdgeWeightedDigraph\n"
     			+ "-from edu.princeton.cs.algs4 package on Windows 10, and Ubuntu 20.04 LTS operating systems. Custom implemetations\n"
                 + "-of mentioned classes also works fine as long as methods are defined or set as described further in text.\n"
                 + "-MacOSX is not tested.\n\n");
-    	sb.append("-GraphVizSPA3 can be used for making dot string representation of Graphs used and implemented on course\n"
-    			+ "-Data Structures and Algorithms 3. To make graph image GraphVizSPA3 expects either object of one of graph\n"
+    	sb.append("-GraphViz can be used for making dot string representation of Graphs used and implemented on course\n"
+    			+ "-Data Structures and Algorithms 3. To make graph image GraphViz expects either object of one of graph\n"
     			+ "-types used on aforementioned course or valid dot representation of required graph.\n");
     	sb.append("-Default allowed class names are Graph, Digraph, EdgeWeightedGraph and EdgeWeightedDigraph.\n"
     			+ "-Class names can be changed by using methods: \n"
@@ -614,7 +766,7 @@ public class GraphVizSPA3
     			+ "-Same can be applied for other methods for setting method name.\n"
     			+ "-All method and graph names can be reset to default by using methods resetMethodNames() and resetGraphClassNames()\n"
     			+ "-respectively.\n\n");
-    	sb.append("-By using method toDot(Object graph) GraphVizSPA3 will return String representaion of graph passed to method.\n");
+    	sb.append("-By using method toDot(Object graph) GraphViz will return String representaion of graph passed to method.\n");
     	sb.append("-Output image type can be changed by using method setFileType(String fileType). Allowed file types are:\n"
     			+ "\t-png (default)\n"
     			+ "\t-jpg\n"
@@ -622,8 +774,10 @@ public class GraphVizSPA3
     			+ "-For example if gif is required, method setFileType(String fileType) should be used as setFileType(\"gif\").\n\n");
     	sb.append("-If in your implementation of graph you have toDot() method, or toString() method that returns dot format of graph,\n"
     			+ "-(or for that purpose any other method that returns dot formated string of graph)\n"
-    			+ "-GraphVizSPA3 can be used to draw your graph by using\n"
+    			+ "-GraphViz can be used to draw your graph by using\n"
     			+ "-createGraphImage(String dotSource) as createGraphImage(graph.toDot()) or createGraphImage(graph.toString()).\n\n");
+    	sb.append("-For graphs that have less than 400 edges method drawInBrowser(Object graph) or drawInBrowser(String dot) can be used.\n"
+    			+ "-Default browser will be opened and appropriate query sent to service that does drawing.");
     	sb.append("----Usage example----\n"
     			+ "public class Main {\r\n"
     			+ "    public static void main(String[] args) {\r\n"
@@ -631,7 +785,7 @@ public class GraphVizSPA3
     			+ "        Graph g = new Graph(Svetovid.in(\"mediumG.txt\"));\r\n"
     			+ "        EdgeWeightedDigraph ewd = new EdgeWeightedDigraph(new In(\"tinyEWD.txt\"));\r\n"
     			+ "        EdgeWeightedGraph ewdd = new EdgeWeightedGraph(new In(\"tinyEWD.txt\"));\r\n\r\n"
-    			+ "        GraphVizSPA3 graphViz = new GraphVizSPA3();\r\n"
+    			+ "        GraphViz graphViz = new GraphViz();\r\n"
     			+ "        //usage example by providing graph object, and notifying GraphViz about method names\r\n"
     			+ "        graphViz.createGraphImage(ewd);\r\n"
     			+ "        graphViz.setFileType(\"jpg\");\r\n"
@@ -643,7 +797,7 @@ public class GraphVizSPA3
     			+ "        graphViz.resetMethodNames();\r\n"
     			+ "        graphViz.setFileType(\"png\");\r\n"
     			+ "        graphViz.createGraphImage(g);\r\n"
-    			+ "        //if your toString() or toDot() method returns proper dot representation of graph\r\n"
+    			+ "        //if your toString() or toDot() method returns proper dot representation of graph respectively\r\n"
     			+ "        graphViz.createGraphImage(g.toString())\r\n"
     			+ "        graphViz.createGraphImage(g.toDot())\r\n"
     			+ "    }\r\n"
@@ -652,7 +806,7 @@ public class GraphVizSPA3
     }
     
     public static void main(String[] args) {
-    	new GraphVizSPA3(true);
+    	GraphViz.help();
     }
 }
 
